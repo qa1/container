@@ -13,11 +13,45 @@ class Container implements ContainerInterface
 
     public function get($id)
     {
-        if (!$this->has($id)) {
+        // If we have a binding for it, then it's a closure.
+        // We can just invoke it and return the resolved instance.
+        if ($this->has($id)) {
+            return $this->definitions[$id]($this);
+        }
+
+        // Otherwise we are going to try and use reflection to "autowire"
+        // the dependencies and instantiate this entry if it's a class.
+        if (!class_exists($id)) {
             throw NotFoundException::create($id);
         }
 
-        return $this->definitions[$id]($this);
+        $reflector = new \ReflectionClass($id);
+
+        if (!$reflector->isInstantiable()) {
+            throw NotFoundException::create($id);
+        }
+
+        /** @var \ReflectionMethod|null */
+        $constructor = $reflector->getConstructor();
+
+        if (is_null($constructor)) {
+            return new $id();
+        }
+
+        $dependencies = array_map(
+            function (\ReflectionParameter $dependency) use ($id) {
+
+                if (is_null($dependency->getClass())) {
+                    throw NotFoundException::create($id);
+                }
+
+                return $this->get($dependency->getClass()->getName());
+
+            },
+            $constructor->getParameters()
+        );
+
+        return $reflector->newInstanceArgs($dependencies);
     }
 
     public function has($id)
