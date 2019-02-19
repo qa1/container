@@ -79,4 +79,24 @@ class Container implements ContainerInterface
             return $object;
         };
     }
+
+    /**
+     * Adds a shared (singleton) entry to the container.
+     *
+     * @param string   $id       Identifier of the entry.
+     * @param \Closure $value    The closure to invoke when this entry is resolved.
+     */
+    public function share($id, \Closure $value)
+    {
+        $this->definitions[$id] = function ($container) use ($value) {
+
+            static $resolvedValue;
+
+            if (is_null($resolvedValue)) {
+                $resolvedValue = $value($container);
+            }
+
+            return $resolvedValue;
+        };
+    }
 }
